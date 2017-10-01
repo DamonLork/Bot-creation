@@ -1,0 +1,2 @@
+node newbot.js
+pause
