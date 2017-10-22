@@ -1,8 +1,6 @@
 // Load up the discord.js library
 const Discord = require("discord.js");
 
-// This is your client. Some people call it `bot`, some people call it `self`, 
-// some might call it `cootchie`. Either way, when you see `client.something`, or `bot.something`,
 // this is what we're refering to. Your client.
 const client = new Discord.Client();
 
@@ -14,8 +12,7 @@ const config = require("./config.json");
 client.on("ready", () => {
   // This event will run if the bot starts, and logs in, successfully.
   console.log(`Bot has started, with ${client.users.size} users, in ${client.channels.size} channels of ${client.guilds.size} guilds.`); 
-  // Example of changing the bot's playing game to something useful. `client.user` is what the
-  // docs refer to as the "ClientUser".
+  // Example of changing the bot's playing game to something useful.
   client.user.setGame(`on ${client.guilds.size} servers`);
 });
 
@@ -35,22 +32,17 @@ client.on("guildDelete", guild => {
 client.on("message", async message => {
   // This event will run on every single message received, from any channel or DM.
   
-  // It's good practice to ignore other bots. This also makes your bot ignore itself
-  // and not get into a spam loop (we call that "botception").
+  //Ignore other bots. This also makes your bot ignore itself
   if(message.author.bot) return;
   
-  // Also good practice to ignore any message that does not start with our prefix, 
+  //Ignore any message that does not start with our prefix, 
   // which is set in the configuration file.
   if(message.content.indexOf(config.prefix) !== 0) return;
   
-  // Here we separate our "command" name, and our "arguments" for the command. 
-  // e.g. if we have the message "+say Is this the real life?" , we'll get the following:
-  // command = say
-  // args = ["Is", "this", "the", "real", "life?"]
   const args = message.content.slice(config.prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
   
-  // Let's go with a few common example commands! Feel free to delete or change those.
+  
   
   if(command === "ping") {
     // Calculates ping between sending a message and editing it, giving a nice round-trip latency.
@@ -60,24 +52,29 @@ client.on("message", async message => {
   }
   
   if(command === "say") {
-    // makes the bot say something and delete the message. As an example, it's open to anyone to use. 
-    // To get the "message" itself we join the `args` back into a string with spaces: 
+    // makes the bot say something and delete the message.
     const sayMessage = args.join(" ");
-    // Then we delete the command message (sneaky, right?). The catch just ignores the error with a cute smiley thing.
+    // Then delete the command message.
     message.delete().catch(O_o=>{}); 
     // And we get the bot to say the thing: 
     message.channel.send(sayMessage);
   }
-  
+
+  client.on('guildMemberAdd', member => {
+    // Send the message to a designated channel on a server:
+    const channel = member.guild.channels.find('name', 'member-log');
+    // Do nothing if the channel wasn't found on this server
+    if (!channel) return;
+    // Send the message, mentioning the member
+    channel.send(`Welcome to the server, ${member}`);
+  });
+
   if(command === "kick") {
-    // This command must be limited to mods and admins. In this example we just hardcode the role names.
-    // Please read on Array.some() to understand this bit: 
-    // https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Array/some?
+    // This command is limited to mods and admins.
     if(!message.member.roles.some(r=>["Administrator", "Moderator"].includes(r.name)) )
       return message.reply("Sorry, you don't have permissions to use this!");
     
-    // Let's first check if we have a member and if we can kick them!
-    // message.mentions.members is a collection of people that have been mentioned, as GuildMembers.
+    //Check if we have a member and if he can kick them!
     let member = message.mentions.members.first();
     if(!member)
       return message.reply("Please mention a valid member of this server");
@@ -98,7 +95,6 @@ client.on("message", async message => {
   
   if(command === "ban") {
     // Most of this command is identical to kick, except that here we'll only let admins do it.
-    // In the real world mods could ban too, but this is just an example, right? ;)
     if(!message.member.roles.some(r=>["Administrator"].includes(r.name)) )
       return message.reply("Sorry, you don't have permissions to use this!");
     
@@ -120,18 +116,89 @@ client.on("message", async message => {
   if(command === "purge") {
     // This command removes all messages from all users in the channel, up to 100.
     
-    // get the delete count, as an actual number.
+    // get the delete count, as an actual number. (sounds good, doesn't work)
     const deleteCount = parseInt(args[0], 10);
     
-    // Ooooh nice, combined conditions. <3
     if(!deleteCount || deleteCount < 2 || deleteCount > 100)
       return message.reply("Please provide a number between 2 and 100 for the number of messages to delete");
     
-    // So we get our messages, and delete them. Simple enough, right?
+    //Get our messages, and delete them.
     const fetched = await message.channel.fetchMessages({count: deleteCount});
     message.channel.bulkDelete(fetched)
       .catch(error => message.reply(`Couldn't delete messages because of: ${error}`));
   }
+  //this mutes the user in the server making him unavailable to write
+  if (command === "mute") {
+  if(!message.member.hasPermission("MANAGE_MESSAGES")) return message.channel.sendMessage("You do not have the required role.");
+  
+		  let toMute = message.guild.member(message.mentions.users.first()) || message.guild.members.get(args[0]);
+		  if(!toMute) return message.channel.send("You did not specify a user mention or ID. :confused:");
+	  
+		  if(toMute.id === message.author.id) return message.channel.send("You cannot mute yourself!!");
+		  if(toMute.highestRole.position >= message.member.highestRole.position) return message.channel.sendMessage("You cannot mute a member who is higher or has the same role as you!"); 
+	  
+		  let role = message.guild.roles.find(r => r.name === "Cyber Muted");
+		  if(!role) {
+			  try{
+				  role = await message.guild.createRole({
+					  name: "Cyber Muted",
+					  color:"#000000",
+					  permissions: []
+				  });
+  
+				  message.guild.channels.forEach(async (channel, id) => {
+					  await channel.overwritePermissions(role, {
+						  SEND_MESSAGES : false,
+						  ADD_REACTIONS : false
+					  });
+				  });
+			  } catch(e) {
+				  console.log(e.stack);
+			  }
+		  }
+		  if(toMute.roles.has(role.id)) return message.channel.send("This user is already muted!!");
+	  
+		  await toMute.addRole(role);
+		  message.channel.send("I have muted them.");
+    }
+    //This unmutes the user who had been previously muted 
+    if (command === "unmute") {
+    if(!message.member.hasPermission("MANAGE_MESSAGES")) return message.channel.sendMessage("You do not have the required role.");
+    
+        let toMute = message.guild.member(message.mentions.users.first()) || message.guild.members.get(args[0]);
+        if(!toMute) return message.channel.send("You did not specify a user mention or ID. :confused:");
+        
+        let role = message.guild.roles.find(r => r.name === "Cyber Muted");
+       
+        if(!role || !toMute.roles.has(role.id)) return message.channel.send("This user is not muted!!");
+        
+        await toMute.removeRole(role);
+        message.channel.send("User unmuted .");
+    }
+
+    //currently under work !! 
+    let myRole = message.guild.roles.find("testrole", "Moderators");
+    
+    if (command === "addrole") {
+    let role = message.guild.roles.find("testrole", "OWNER");
+    
+    let member = message.mentions.members.first();
+    
+
+    
+    // Add the role!
+    member.addRole(role).catch(console.error);
+    }
+    if (command === "removerole") {
+      
+      let role = message.guild.roles.find("testrole", "OWNER");
+
+      let member = message.mentions.members.first();
+      
+    // Remove a role!
+    member.removeRole(role).catch(console.error);
+
+    }
 });
 
 client.login(config.token);
